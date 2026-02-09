@@ -43,7 +43,7 @@
                 <div class="metric-label">Average Grade</div>
             </div>
             <div class="glass-panel metric-card">
-                <div class="metric-value" style="color: var(--success-color);">95%</div>
+                <div class="metric-value" style="color: var(--success-color);">${attendanceRate}%</div>
                 <div class="metric-label">Attendance</div>
             </div>
         </div>

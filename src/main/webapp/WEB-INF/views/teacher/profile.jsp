@@ -24,6 +24,11 @@
         </div>
 
         <div class="glass-panel" style="padding: 2rem; max-width: 600px;">
+            <c:if test="${param.success}">
+                <div style="background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    Profile updated successfully!
+                </div>
+            </c:if>
             <form action="${pageContext.request.contextPath}/teacher/profile" method="post">
                 <div class="input-group">
                     <label>First Name</label>

@@ -206,14 +206,22 @@ public class AdminServlet extends HttpServlet {
             return;
         }
 
-        if (user.getRoleId() != 1) { // 1 is Admin
-            resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Access Denied");
-            return;
-        }
-
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
             path = "/dashboard";
+        }
+
+        boolean isAdmin = (user.getRoleId() == 1);
+        boolean isImpersonating = session.getAttribute("impersonating") != null
+                && (Boolean) session.getAttribute("impersonating");
+
+        if (!isAdmin) {
+            // If not admin, we only allow access if impersonating AND path is
+            // stop-impersonate
+            if (!isImpersonating || !"/stop-impersonate".equals(path)) {
+                resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Access Denied");
+                return;
+            }
         }
 
         switch (path) {

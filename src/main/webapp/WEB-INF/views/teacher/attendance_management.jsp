@@ -24,43 +24,90 @@
         </div>
 
         <div class="glass-panel" style="padding: 2rem;">
-            <div class="flex-between mb-2">
-                <h3>Select Class Session</h3>
-                <input type="date" class="input-field" style="width: auto;">
-            </div>
+            <form method="get" action="${pageContext.request.contextPath}/teacher/attendance" style="margin-bottom: 1rem;">
+                <div class="flex-between mb-2" style="flex-wrap: wrap; gap: 1rem;">
+                    <h3>Select Class Session</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <select name="courseId" class="input-field" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">-- Select Course --</option>
+                            <c:forEach var="c" items="${courses}">
+                                <option value="${c.id}" ${c.id == selectedCourseId ? 'selected' : ''}>
+                                    ${c.courseCode} - ${c.courseName}
+                                </option>
+                            </c:forEach>
+                        </select>
+                        <input type="date" name="date" class="input-field" style="width: auto;" value="${currentDate}" onchange="this.form.submit()">
+                        <input type="text" name="search" class="input-field" style="width: auto;" placeholder="Search student..." value="${searchQuery}">
+                        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+                    </div>
+                </div>
+            </form>
 
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Student ID</th>
-                            <th>Name</th>
-                            <th>Status (Click to Toggle)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>S10293</td>
-                            <td>Alice Walker</td>
-                            <td><button class="btn btn-sm btn-primary" style="background: var(--success-color);">Present</button></td>
-                        </tr>
-                        <tr>
-                            <td>S10294</td>
-                            <td>Bob Martin</td>
-                            <td><button class="btn btn-sm btn-primary" style="background: var(--danger-color);">Absent</button></td>
-                        </tr>
-                        <tr>
-                            <td>S10295</td>
-                            <td>Charlie Brown</td>
-                            <td><button class="btn btn-sm btn-primary" style="background: var(--success-color);">Present</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <c:if test="${not empty selectedCourseId}">
+                <form action="${pageContext.request.contextPath}/teacher/attendance" method="post">
+                    <input type="hidden" name="courseId" value="${selectedCourseId}">
+                    <input type="hidden" name="date" value="${currentDate}">
+                    <input type="hidden" name="search" value="${searchQuery}">
+                    <input type="hidden" name="page" value="${currentPage}">
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Student ID</th>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <c:forEach var="sMap" items="${students}">
+                                    <tr>
+                                        <td>${sMap.student.studentNumber}</td>
+                                        <td>${sMap.user.firstName} ${sMap.user.lastName}</td>
+                                        <td>
+                                            <label style="margin-right: 10px;">
+                                                <input type="radio" name="status_${sMap.enrollmentId}" value="Present" ${sMap.status == 'Present' ? 'checked' : ''} required> Present
+                                            </label>
+                                            <label style="margin-right: 10px;">
+                                                <input type="radio" name="status_${sMap.enrollmentId}" value="Absent" ${sMap.status == 'Absent' ? 'checked' : ''}> Absent
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="status_${sMap.enrollmentId}" value="Late" ${sMap.status == 'Late' ? 'checked' : ''}> Late
+                                            </label>
+                                        </td>
+                                    </tr>
+                                </c:forEach>
+                                <c:if test="${empty students}">
+                                    <tr><td colspan="3" style="text-align:center;">No students found.</td></tr>
+                                </c:if>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <c:if test="${not empty students}">
+                        <div class="text-center mt-2">
+                             <button type="submit" class="btn btn-primary">Save Attendance Record</button>
+                        </div>
+                    </c:if>
+                </form>
+
+                <!-- Pagination -->
+                <c:if test="${totalPages > 1}">
+                    <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;">
+                        <c:forEach begin="1" end="${totalPages}" var="i">
+                            <a href="${pageContext.request.contextPath}/teacher/attendance?courseId=${selectedCourseId}&date=${currentDate}&search=${searchQuery}&page=${i}" 
+                               class="btn btn-sm ${i == currentPage ? 'btn-primary' : 'btn-danger'}" 
+                               style="${i == currentPage ? 'opacity: 1;' : 'opacity: 0.7;'}">
+                                ${i}
+                            </a>
+                        </c:forEach>
+                    </div>
+                </c:if>
+            </c:if>
             
-            <div class="text-center mt-2">
-                 <button class="btn btn-primary">Save Attendance Record</button>
-            </div>
+            <c:if test="${empty selectedCourseId}">
+                <p style="text-align: center; color: #666;">Please select a course to take attendance.</p>
+            </c:if>
         </div>
     </div>
 </div>

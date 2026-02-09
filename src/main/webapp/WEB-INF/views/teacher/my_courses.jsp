@@ -43,8 +43,8 @@
                                 <td>${studentCountMap[course.id]}</td>
                                 <td>${course.credits}</td>
                                 <td>
-                                    <a href="#" class="btn btn-sm btn-primary">Class List</a>
-                                    <a href="#" class="btn btn-sm btn-danger">Edit Info</a>
+                                    <a href="${pageContext.request.contextPath}/teacher/attendance?courseId=${course.id}" class="btn btn-sm btn-primary">Class List</a>
+                                    <a href="#" class="btn btn-sm btn-danger" onclick="alert('Editing course info is reserved for Admins currently.')">Info</a>
                                 </td>
                             </tr>
                         </c:forEach>

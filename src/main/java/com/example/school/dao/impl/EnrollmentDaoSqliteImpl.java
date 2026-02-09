@@ -88,4 +88,33 @@ public class EnrollmentDaoSqliteImpl implements EnrollmentDao {
         }
         return list;
     }
+
+    @Override
+    public boolean isEnrolled(int studentId, int courseId) {
+        String sql = "SELECT 1 FROM enrollments WHERE student_id = ? AND course_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, studentId);
+            pstmt.setInt(2, courseId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    @Override
+    public void delete(int studentId, int courseId) {
+        String sql = "DELETE FROM enrollments WHERE student_id = ? AND course_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, studentId);
+            pstmt.setInt(2, courseId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }

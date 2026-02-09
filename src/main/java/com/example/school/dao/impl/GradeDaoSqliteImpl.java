@@ -44,4 +44,18 @@ public class GradeDaoSqliteImpl implements GradeDao {
         }
         return list;
     }
+
+    @Override
+    public void update(Grade grade) {
+        String sql = "UPDATE grades SET grade = ?, date_recorded = ? WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setDouble(1, grade.getGrade());
+            pstmt.setString(2, grade.getDateRecorded());
+            pstmt.setInt(3, grade.getId());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }

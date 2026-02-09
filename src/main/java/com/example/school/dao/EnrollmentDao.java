@@ -12,4 +12,8 @@ public interface EnrollmentDao {
     List<Enrollment> findByStudentId(int studentId);
 
     List<Enrollment> findByCourseId(int courseId);
+
+    boolean isEnrolled(int studentId, int courseId);
+
+    void delete(int studentId, int courseId);
 }

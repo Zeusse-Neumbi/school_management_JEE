@@ -49,7 +49,7 @@
         </div>
 
         <div class="glass-panel" style="padding: 2rem;">
-            <h3>🗓️ Today's Schedule</h3>
+            <h3>🗓️ Today's Schedule <small style="font-size: 0.8rem; color: #666;">(Placeholder)</small></h3>
             <div class="table-container">
                 <table>
                     <thead>

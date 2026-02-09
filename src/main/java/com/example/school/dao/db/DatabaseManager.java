@@ -8,7 +8,7 @@ import java.sql.Statement;
 public class DatabaseManager {
 
         // Changed DB name to ensure fresh schema creation
-        private static final String URL = "jdbc:sqlite:school_managed.db";
+        private static final String URL = "jdbc:sqlite:school.db";
 
         static {
                 try {

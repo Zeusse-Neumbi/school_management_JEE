@@ -196,7 +196,7 @@ public class DataSeeder {
 
                                 // Seed Grads
                                 pstmtGrade.setInt(1, enrollmentId);
-                                pstmtGrade.setDouble(2, random.nextDouble() * 20); // 0-20
+                                pstmtGrade.setInt(2, random.nextInt(21));
                                 pstmtGrade.setString(3, LocalDate.now().toString());
                                 pstmtGrade.executeUpdate();
 

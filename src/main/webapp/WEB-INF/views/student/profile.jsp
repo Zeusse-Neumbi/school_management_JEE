@@ -24,6 +24,16 @@
         </div>
 
         <div class="glass-panel" style="padding: 2rem; max-width: 600px;">
+            <c:if test="${not empty success}">
+                <div style="background: #dcfce7; color: #166534; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    ${success}
+                </div>
+            </c:if>
+            <c:if test="${not empty error}">
+                <div style="background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                    ${error}
+                </div>
+            </c:if>
             <form action="${pageContext.request.contextPath}/student/profile" method="post">
                 <div class="input-group">
                     <label>First Name</label>

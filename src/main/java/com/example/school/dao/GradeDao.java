@@ -7,4 +7,6 @@ public interface GradeDao {
     void save(Grade grade);
 
     List<Grade> findByEnrollmentId(int enrollmentId);
+
+    void update(Grade grade);
 }
