@@ -178,11 +178,15 @@ public class DataSeeder {
             // Enroll each student in 3 to 6 courses
             for (int studentId : studentIds) {
                 int coursesCount = random.nextInt(4) + 3; // 3-6 courses
-                for (int i = 0; i < coursesCount; i++) {
+                java.util.Set<Integer> assignedCourses = new java.util.HashSet<>();
+                while (assignedCourses.size() < coursesCount) {
                     int courseId = courseIds.get(random.nextInt(courseIds.size()));
 
-                    // Simple check to avoid duplicate enrollments might be needed in real app,
-                    // failing silently here for simplicity if unique constraint hits
+                    if (assignedCourses.contains(courseId)) {
+                        continue;
+                    }
+                    assignedCourses.add(courseId);
+
                     try {
                         pstmtEnroll.setInt(1, studentId);
                         pstmtEnroll.setInt(2, courseId);
@@ -194,7 +198,7 @@ public class DataSeeder {
                             if (rs.next()) {
                                 int enrollmentId = rs.getInt(1);
 
-                                // Seed Grads
+                                // Seed Grades
                                 pstmtGrade.setInt(1, enrollmentId);
                                 pstmtGrade.setInt(2, random.nextInt(21));
                                 pstmtGrade.setString(3, LocalDate.now().toString());
@@ -216,7 +220,7 @@ public class DataSeeder {
                         }
 
                     } catch (SQLException e) {
-                        // Ignore duplicate enrollment errors
+                        e.printStackTrace();
                     }
                 }
             }

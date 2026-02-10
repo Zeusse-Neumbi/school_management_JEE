@@ -252,7 +252,7 @@ public class TeacherServlet extends HttpServlet {
                 }
 
                 // Pagination
-                int pageSize = 10;
+                int pageSize = 1000000;
                 int page = 1;
                 if (pageParam != null && !pageParam.isEmpty()) {
                     try {
