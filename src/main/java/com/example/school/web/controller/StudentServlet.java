@@ -1,8 +1,9 @@
 package com.example.school.web.controller;
 
-import com.example.school.dao.*;
-import com.example.school.dao.impl.*;
 import com.example.school.model.*;
+import com.example.school.service.ServiceFactory;
+import com.example.school.service.StudentService;
+import com.example.school.service.UserService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -16,28 +17,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.example.school.util.PasswordUtil;
-
 @WebServlet(name = "StudentServlet", urlPatterns = { "/student/*" })
 public class StudentServlet extends HttpServlet {
 
-    private StudentDao studentDao;
-    private CourseDao courseDao;
-    private EnrollmentDao enrollmentDao;
-    private GradeDao gradeDao;
-    private AttendanceDao attendanceDao;
-    private TeacherDao teacherDao;
-    private UserDao userDao;
+    private StudentService studentService;
+    private UserService userService;
 
     @Override
     public void init() throws ServletException {
-        studentDao = new StudentDaoSqliteImpl();
-        courseDao = new CourseDaoSqliteImpl();
-        enrollmentDao = new EnrollmentDaoSqliteImpl();
-        gradeDao = new GradeDaoSqliteImpl();
-        attendanceDao = new AttendanceDaoSqliteImpl();
-        teacherDao = new TeacherDaoSqliteImpl();
-        userDao = new UserDaoSqliteImpl();
+        studentService = ServiceFactory.getStudentService();
+        userService = ServiceFactory.getUserService();
     }
 
     @Override
@@ -58,7 +47,7 @@ public class StudentServlet extends HttpServlet {
         }
 
         // Fetch Student Entity
-        Optional<Student> studentOpt = studentDao.findByUserId(user.getId());
+        Optional<Student> studentOpt = studentService.getStudentByUserId(user.getId());
         if (studentOpt.isEmpty()) {
             resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Student profile not found.");
             return;
@@ -103,7 +92,7 @@ public class StudentServlet extends HttpServlet {
         }
 
         // Fetch Student Entity
-        Optional<Student> studentOpt = studentDao.findByUserId(user.getId());
+        Optional<Student> studentOpt = studentService.getStudentByUserId(user.getId());
         if (studentOpt.isEmpty()) {
             resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Student profile not found.");
             return;
@@ -125,7 +114,7 @@ public class StudentServlet extends HttpServlet {
     private void handleUnenroll(HttpServletRequest req, HttpServletResponse resp, Student student) throws IOException {
         try {
             int courseId = Integer.parseInt(req.getParameter("courseId"));
-            enrollmentDao.delete(student.getId(), courseId);
+            studentService.unenroll(student.getId(), courseId);
             resp.sendRedirect(req.getContextPath() + "/student/courses");
         } catch (NumberFormatException e) {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid course ID");
@@ -135,11 +124,7 @@ public class StudentServlet extends HttpServlet {
     private void handleEnroll(HttpServletRequest req, HttpServletResponse resp, Student student) throws IOException {
         try {
             int courseId = Integer.parseInt(req.getParameter("courseId"));
-            if (!enrollmentDao.isEnrolled(student.getId(), courseId)) {
-                Enrollment enrollment = new Enrollment(0, student.getId(), courseId,
-                        java.time.LocalDate.now().toString());
-                enrollmentDao.save(enrollment);
-            }
+            studentService.enroll(student.getId(), courseId);
             resp.sendRedirect(req.getContextPath() + "/student/courses");
         } catch (NumberFormatException e) {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid course ID");
@@ -157,16 +142,10 @@ public class StudentServlet extends HttpServlet {
             return;
         }
 
-        Optional<User> userOpt = userDao.findById(student.getUserId());
+        Optional<User> userOpt = userService.findById(student.getUserId());
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            user.setEmail(email);
-            if (password != null && !password.trim().isEmpty()) {
-                // Hash the password before saving
-                String hashedPassword = PasswordUtil.hashPassword(password);
-                user.setPassword(hashedPassword);
-            }
-            userDao.update(user);
+            userService.updateProfile(user, email, password);
 
             // Update session
             req.getSession().setAttribute("user", user);
@@ -180,25 +159,12 @@ public class StudentServlet extends HttpServlet {
 
     private void showDashboard(HttpServletRequest req, HttpServletResponse resp, Student student)
             throws ServletException, IOException {
-        List<Course> courses = courseDao.findByStudentId(student.getId());
-        req.setAttribute("courseCount", courses.size());
+        req.setAttribute("courseCount", studentService.getCourseCount(student.getId()));
 
-        // Calculate GPA (Mock calculation based on seeded grades)
-        List<Enrollment> enrollments = enrollmentDao.findByStudentId(student.getId());
-        double totalGrades = 0;
-        int gradeCount = 0;
-        for (Enrollment e : enrollments) {
-            List<Grade> grades = gradeDao.findByEnrollmentId(e.getId());
-            for (Grade g : grades) {
-                totalGrades += g.getGrade();
-                gradeCount++;
-            }
-        }
-        double gpa = gradeCount > 0 ? totalGrades / gradeCount : 0.0;
+        double gpa = studentService.calculateGPA(student.getId());
         req.setAttribute("gpa", String.format("%.2f", gpa));
 
-        // Calculate Attendance Rate
-        double attendanceRate = attendanceDao.getAttendanceRate(student.getId());
+        double attendanceRate = studentService.getAttendanceRate(student.getId());
         req.setAttribute("attendanceRate", String.format("%.0f", attendanceRate));
 
         req.getRequestDispatcher("/WEB-INF/views/student/dashboard.jsp").forward(req, resp);
@@ -206,29 +172,17 @@ public class StudentServlet extends HttpServlet {
 
     private void showCourses(HttpServletRequest req, HttpServletResponse resp, Student student)
             throws ServletException, IOException {
-        List<Course> allCourses = courseDao.findAll();
-        List<Enrollment> enrollments = enrollmentDao.findByStudentId(student.getId());
-
-        java.util.Set<Integer> enrolledCourseIds = new java.util.HashSet<>();
-        for (Enrollment e : enrollments) {
-            enrolledCourseIds.add(e.getCourseId());
-        }
-
-        List<Course> enrolledCourses = new java.util.ArrayList<>();
-        List<Course> availableCourses = new java.util.ArrayList<>();
+        List<Course> enrolledCourses = studentService.getEnrolledCourses(student.getId());
+        List<Course> availableCourses = studentService.getAvailableCourses(student.getId());
 
         Map<Integer, String> teacherNames = new HashMap<>();
 
-        for (Course course : allCourses) {
-            if (enrolledCourseIds.contains(course.getId())) {
-                enrolledCourses.add(course);
-            } else {
-                availableCourses.add(course);
-            }
-
-            // Fetch teacher name
-            teacherDao.findById(course.getTeacherId()).ifPresent(t -> userDao.findById(t.getUserId())
-                    .ifPresent(u -> teacherNames.put(course.getId(), u.getFirstName() + " " + u.getLastName())));
+        // Combine both lists to fetch teacher names efficiently (or just loop both)
+        for (Course c : enrolledCourses) {
+            teacherNames.put(c.getId(), studentService.getTeacherName(c.getId()));
+        }
+        for (Course c : availableCourses) {
+            teacherNames.put(c.getId(), studentService.getTeacherName(c.getId()));
         }
 
         req.setAttribute("enrolledCourses", enrolledCourses);
@@ -239,15 +193,35 @@ public class StudentServlet extends HttpServlet {
 
     private void showGrades(HttpServletRequest req, HttpServletResponse resp, Student student)
             throws ServletException, IOException {
-        List<Enrollment> enrollments = enrollmentDao.findByStudentId(student.getId());
+        List<Enrollment> enrollments = studentService.getEnrollments(student.getId());
         Map<Integer, Course> courseMap = new HashMap<>();
         Map<Integer, List<Grade>> gradesMap = new HashMap<>();
 
         for (Enrollment funcEnrollment : enrollments) {
-            courseDao.findById(funcEnrollment.getCourseId())
-                    .ifPresent(c -> courseMap.put(funcEnrollment.getCourseId(), c));
-            List<Grade> grades = gradeDao.findByEnrollmentId(funcEnrollment.getId());
-            gradesMap.put(funcEnrollment.getId(), grades);
+            Course course = studentService.getCourse(funcEnrollment.getCourseId());
+            if (course != null) {
+                courseMap.put(funcEnrollment.getCourseId(), course);
+            }
+            // Utilizing the service to get grades would be cleaner, but we already have a
+            // bulk Access method?
+            // studentService.getGrades(studentId) returns Map<EnrollmentId, List<Grade>>
+            // Let's use that instead of looping here if possible, but the view expects
+            // specific structure.
+            // For now, let's stick to the existing logic but use Service where possible or
+            // keep it simple.
+            // Actually, studentService.getGrades returns the map we need!
+            // But we also need the enrollments list for the iteration in JSP.
+        }
+
+        // Re-fetching efficient maps
+        gradesMap = studentService.getGrades(student.getId());
+
+        // We still need courseMap
+        for (Enrollment e : enrollments) {
+            Course course = studentService.getCourse(e.getCourseId());
+            if (course != null) {
+                courseMap.put(e.getCourseId(), course);
+            }
         }
 
         req.setAttribute("enrollments", enrollments);
@@ -258,15 +232,17 @@ public class StudentServlet extends HttpServlet {
 
     private void showAttendance(HttpServletRequest req, HttpServletResponse resp, Student student)
             throws ServletException, IOException {
-        List<Enrollment> enrollments = enrollmentDao.findByStudentId(student.getId());
+        List<Enrollment> enrollments = studentService.getEnrollments(student.getId());
         Map<Integer, Course> courseMap = new HashMap<>();
         Map<Integer, List<Attendance>> attendanceMap = new HashMap<>();
 
+        attendanceMap = studentService.getAttendance(student.getId());
+
         for (Enrollment funcEnrollment : enrollments) {
-            courseDao.findById(funcEnrollment.getCourseId())
-                    .ifPresent(c -> courseMap.put(funcEnrollment.getCourseId(), c));
-            List<Attendance> attendances = attendanceDao.findByEnrollmentId(funcEnrollment.getId());
-            attendanceMap.put(funcEnrollment.getId(), attendances);
+            Course course = studentService.getCourse(funcEnrollment.getCourseId());
+            if (course != null) {
+                courseMap.put(funcEnrollment.getCourseId(), course);
+            }
         }
 
         req.setAttribute("enrollments", enrollments);

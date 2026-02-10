@@ -1,26 +1,51 @@
 package com.example.school.dao.db;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Properties;
 
 public class DatabaseManager {
 
-        // Changed DB name to ensure fresh schema creation
-        private static final String URL = "jdbc:sqlite:school.db";
+        private static HikariDataSource dataSource;
 
         static {
                 try {
-                        Class.forName("org.sqlite.JDBC");
+                        Properties props = new Properties();
+                        try (InputStream input = DatabaseManager.class.getClassLoader()
+                                        .getResourceAsStream("application.properties")) {
+                                if (input == null) {
+                                        throw new RuntimeException("Sorry, unable to find application.properties");
+                                }
+                                props.load(input);
+                        }
+
+                        HikariConfig config = new HikariConfig();
+                        config.setJdbcUrl(props.getProperty("db.url"));
+                        config.setDriverClassName(props.getProperty("db.driver"));
+
+                        // Optional: Set pool properties
+                        if (props.getProperty("db.pool.maximumPoolSize") != null) {
+                                config.setMaximumPoolSize(
+                                                Integer.parseInt(props.getProperty("db.pool.maximumPoolSize")));
+                        }
+                        if (props.getProperty("db.pool.minimumIdle") != null) {
+                                config.setMinimumIdle(Integer.parseInt(props.getProperty("db.pool.minimumIdle")));
+                        }
+
+                        dataSource = new HikariDataSource(config);
+
                         initDatabase();
-                } catch (ClassNotFoundException e) {
-                        throw new RuntimeException("SQLite JDBC Driver not found", e);
+                } catch (Exception e) {
+                        throw new RuntimeException("Error initializing database connection pool", e);
                 }
         }
 
         public static Connection getConnection() throws SQLException {
-                return DriverManager.getConnection(URL);
+                return dataSource.getConnection();
         }
 
         private static void initDatabase() {

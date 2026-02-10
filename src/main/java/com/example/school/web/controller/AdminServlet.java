@@ -1,8 +1,8 @@
 package com.example.school.web.controller;
 
-import com.example.school.dao.*;
-import com.example.school.dao.impl.*;
 import com.example.school.model.*;
+import com.example.school.service.AdminService;
+import com.example.school.service.ServiceFactory;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -11,21 +11,17 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
 @WebServlet(name = "AdminServlet", urlPatterns = { "/admin/*" })
 public class AdminServlet extends HttpServlet {
 
-    private UserDao userDao;
-    private StudentDao studentDao;
-    private TeacherDao teacherDao;
-    private CourseDao courseDao;
+    private AdminService adminService;
 
     @Override
     public void init() throws ServletException {
-        userDao = new UserDaoSqliteImpl();
-        studentDao = new StudentDaoSqliteImpl();
-        teacherDao = new TeacherDaoSqliteImpl();
-        courseDao = new CourseDaoSqliteImpl();
+        adminService = ServiceFactory.getAdminService();
     }
 
     @Override
@@ -64,67 +60,51 @@ public class AdminServlet extends HttpServlet {
     private void handleUserAction(HttpServletRequest req, HttpServletResponse resp, String action) throws IOException {
         if ("create".equals(action)) {
             int roleId = Integer.parseInt(req.getParameter("roleId"));
-            String rawPassword = req.getParameter("password");
-            String hashedPassword = com.example.school.util.PasswordUtil.hashPassword(rawPassword);
-
             User newUser = new User(0,
                     req.getParameter("email"),
-                    hashedPassword,
+                    null,
                     roleId,
                     req.getParameter("firstName"),
                     req.getParameter("lastName"));
-            int newUserId = userDao.save(newUser);
 
-            if (newUserId != -1) {
-                if (roleId == 3) { // Student
-                    Student student = new Student(0,
-                            newUserId,
-                            req.getParameter("studentNumber"),
-                            req.getParameter("email"),
-                            req.getParameter("dateOfBirth"));
-                    studentDao.save(student);
-                } else if (roleId == 2) { // Teacher
-                    Teacher teacher = new Teacher(0,
-                            newUserId,
-                            req.getParameter("employeeId"),
-                            req.getParameter("email"),
-                            req.getParameter("specialization"));
-                    teacherDao.save(teacher);
-                }
+            String password = req.getParameter("password");
+
+            java.util.Map<String, String> roleData = new java.util.HashMap<>();
+            if (roleId == 3) { // Student
+                roleData.put("studentNumber", req.getParameter("studentNumber"));
+                roleData.put("dateOfBirth", req.getParameter("dateOfBirth"));
+            } else if (roleId == 2) { // Teacher
+                roleData.put("employeeId", req.getParameter("employeeId"));
+                roleData.put("specialization", req.getParameter("specialization"));
             }
+
+            adminService.createUserWithRole(newUser, password, roleData);
+
         } else if ("update".equals(action)) {
             try {
                 int userId = Integer.parseInt(req.getParameter("id"));
-                java.util.Optional<User> existingUserOpt = userDao.findById(userId);
+                Optional<User> existingUserOpt = adminService.getUserById(userId);
 
                 if (existingUserOpt.isPresent()) {
                     User existingUser = existingUserOpt.get();
                     String newPassword = req.getParameter("password");
-                    String passwordToSave = existingUser.getPassword();
-
-                    if (newPassword != null && !newPassword.trim().isEmpty()) {
-                        passwordToSave = com.example.school.util.PasswordUtil.hashPassword(newPassword);
-                    }
 
                     User updatedUser = new User(
                             userId,
                             req.getParameter("email"),
-                            passwordToSave,
+                            existingUser.getPassword(),
                             Integer.parseInt(req.getParameter("roleId")),
                             req.getParameter("firstName"),
                             req.getParameter("lastName"));
-                    userDao.update(updatedUser);
+
+                    adminService.updateUser(updatedUser, newPassword);
                 }
             } catch (NumberFormatException e) {
-                // Log error or ignore
                 e.printStackTrace();
             }
         } else if ("delete".equals(action)) {
             int id = Integer.parseInt(req.getParameter("id"));
-            // Cascade delete: remove linked Student or Teacher first
-            studentDao.deleteByUserId(id);
-            teacherDao.deleteByUserId(id);
-            userDao.delete(id);
+            adminService.deleteUser(id);
         }
         resp.sendRedirect(req.getContextPath() + "/admin/users");
     }
@@ -133,20 +113,27 @@ public class AdminServlet extends HttpServlet {
             throws IOException {
         // Creation handled via User creation
         if ("create".equals(action)) {
-            // Redirect or error since we don't create students directly anymore
             resp.sendRedirect(req.getContextPath() + "/admin/users");
             return;
         } else if ("update".equals(action)) {
-            Student student = new Student(
-                    Integer.parseInt(req.getParameter("id")),
-                    Integer.parseInt(req.getParameter("userId")),
-                    req.getParameter("studentNumber"),
-                    req.getParameter("email"),
-                    req.getParameter("dateOfBirth"));
-            studentDao.update(student);
+            try {
+                Student student = new Student(
+                        Integer.parseInt(req.getParameter("id")),
+                        Integer.parseInt(req.getParameter("userId")),
+                        req.getParameter("studentNumber"),
+                        req.getParameter("email"),
+                        req.getParameter("dateOfBirth"));
+                adminService.updateStudent(student);
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
         } else if ("delete".equals(action)) {
-            int id = Integer.parseInt(req.getParameter("id"));
-            studentDao.delete(id);
+            try {
+                int id = Integer.parseInt(req.getParameter("id"));
+                adminService.deleteStudent(id);
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
         }
         resp.sendRedirect(req.getContextPath() + "/admin/students");
     }
@@ -158,40 +145,52 @@ public class AdminServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/admin/users");
             return;
         } else if ("update".equals(action)) {
-            Teacher teacher = new Teacher(
-                    Integer.parseInt(req.getParameter("id")),
-                    Integer.parseInt(req.getParameter("userId")),
-                    req.getParameter("employeeId"),
-                    req.getParameter("email"),
-                    req.getParameter("specialization"));
-            teacherDao.update(teacher);
+            try {
+                Teacher teacher = new Teacher(
+                        Integer.parseInt(req.getParameter("id")),
+                        Integer.parseInt(req.getParameter("userId")),
+                        req.getParameter("employeeId"),
+                        req.getParameter("email"),
+                        req.getParameter("specialization"));
+                adminService.updateTeacher(teacher);
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
         } else if ("delete".equals(action)) {
-            int id = Integer.parseInt(req.getParameter("id"));
-            teacherDao.delete(id);
+            try {
+                int id = Integer.parseInt(req.getParameter("id"));
+                adminService.deleteTeacher(id);
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+            }
         }
         resp.sendRedirect(req.getContextPath() + "/admin/teachers");
     }
 
     private void handleCourseAction(HttpServletRequest req, HttpServletResponse resp, String action)
             throws IOException {
-        if ("create".equals(action)) {
-            Course course = new Course(0,
-                    req.getParameter("courseName"),
-                    req.getParameter("courseCode"),
-                    Integer.parseInt(req.getParameter("teacherId")),
-                    Integer.parseInt(req.getParameter("credits")));
-            courseDao.save(course);
-        } else if ("update".equals(action)) {
-            Course course = new Course(
-                    Integer.parseInt(req.getParameter("id")),
-                    req.getParameter("courseName"),
-                    req.getParameter("courseCode"),
-                    Integer.parseInt(req.getParameter("teacherId")),
-                    Integer.parseInt(req.getParameter("credits")));
-            courseDao.update(course);
-        } else if ("delete".equals(action)) {
-            int id = Integer.parseInt(req.getParameter("id"));
-            courseDao.delete(id);
+        try {
+            if ("create".equals(action)) {
+                Course course = new Course(0,
+                        req.getParameter("courseName"),
+                        req.getParameter("courseCode"),
+                        Integer.parseInt(req.getParameter("teacherId")),
+                        Integer.parseInt(req.getParameter("credits")));
+                adminService.createCourse(course);
+            } else if ("update".equals(action)) {
+                Course course = new Course(
+                        Integer.parseInt(req.getParameter("id")),
+                        req.getParameter("courseName"),
+                        req.getParameter("courseCode"),
+                        Integer.parseInt(req.getParameter("teacherId")),
+                        Integer.parseInt(req.getParameter("credits")));
+                adminService.updateCourse(course);
+            } else if ("delete".equals(action)) {
+                int id = Integer.parseInt(req.getParameter("id"));
+                adminService.deleteCourse(id);
+            }
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
         }
         resp.sendRedirect(req.getContextPath() + "/admin/courses");
     }
@@ -261,42 +260,42 @@ public class AdminServlet extends HttpServlet {
             return;
         }
 
-        int userId = Integer.parseInt(userIdStr);
-        User targetUser = null;
-        for (User u : userDao.findAll()) {
-            if (u.getId() == userId) {
-                targetUser = u;
-                break;
+        try {
+            int userId = Integer.parseInt(userIdStr);
+            Optional<User> targetUserOpt = adminService.getUserById(userId);
+
+            if (targetUserOpt.isEmpty()) {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
+                return;
             }
+            User targetUser = targetUserOpt.get();
+
+            req.setAttribute("targetUser", targetUser);
+
+            if (targetUser.getRoleId() == 2) { // Teacher
+                adminService.getTeacherByUserId(userId).ifPresent(t -> {
+                    req.setAttribute("targetTeacher", t);
+                    req.setAttribute("teacherCourses", adminService.getTeacherCourses(t.getId()));
+                });
+            } else if (targetUser.getRoleId() == 3) { // Student
+                adminService.getStudentByUserId(userId).ifPresent(s -> {
+                    req.setAttribute("targetStudent", s);
+                    req.setAttribute("studentCourses", adminService.getStudentCourses(s.getId()));
+                });
+            }
+
+            req.getRequestDispatcher("/WEB-INF/views/admin/profile.jsp").forward(req, resp);
+        } catch (NumberFormatException e) {
+            resp.sendRedirect(req.getContextPath() + "/admin/users");
         }
-
-        if (targetUser == null) {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "User not found");
-            return;
-        }
-
-        req.setAttribute("targetUser", targetUser);
-
-        if (targetUser.getRoleId() == 2) { // Teacher
-            teacherDao.findByUserId(userId).ifPresent(t -> {
-                req.setAttribute("targetTeacher", t);
-                req.setAttribute("teacherCourses", courseDao.findByTeacherId(t.getId()));
-            });
-        } else if (targetUser.getRoleId() == 3) { // Student
-            studentDao.findByUserId(userId).ifPresent(s -> {
-                req.setAttribute("targetStudent", s);
-                req.setAttribute("studentCourses", courseDao.findByStudentId(s.getId()));
-            });
-        }
-
-        req.getRequestDispatcher("/WEB-INF/views/admin/profile.jsp").forward(req, resp);
     }
 
     private void showDashboard(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        req.setAttribute("userCount", userDao.findAll().size());
-        req.setAttribute("studentCount", studentDao.findAll().size());
-        req.setAttribute("teacherCount", teacherDao.findAll().size());
-        req.setAttribute("courseCount", courseDao.findAll().size());
+        java.util.Map<String, Integer> stats = adminService.getDashboardStats();
+        req.setAttribute("userCount", stats.get("userCount"));
+        req.setAttribute("studentCount", stats.get("studentCount"));
+        req.setAttribute("teacherCount", stats.get("teacherCount"));
+        req.setAttribute("courseCount", stats.get("courseCount"));
         req.getRequestDispatcher("/WEB-INF/views/admin/dashboard.jsp").forward(req, resp);
     }
 
@@ -314,17 +313,8 @@ public class AdminServlet extends HttpServlet {
         }
         int pageSize = 10;
 
-        java.util.List<User> users;
-        int totalUsers;
-
-        if (search != null && !search.trim().isEmpty()) {
-            users = userDao.search(search, page, pageSize);
-            totalUsers = userDao.count(search);
-        } else {
-            users = userDao.search("", page, pageSize);
-            totalUsers = userDao.count();
-        }
-
+        List<User> users = adminService.searchUsers(search, page, pageSize);
+        int totalUsers = adminService.countUsers(search);
         int totalPages = (int) Math.ceil((double) totalUsers / pageSize);
 
         req.setAttribute("users", users);
@@ -332,15 +322,14 @@ public class AdminServlet extends HttpServlet {
         req.setAttribute("totalPages", totalPages);
         req.setAttribute("searchQuery", search);
 
-        // Add student and teacher maps for edit modal population
         java.util.Map<Integer, Student> studentMap = new java.util.HashMap<>();
-        for (Student s : studentDao.findAll()) {
+        for (Student s : adminService.getAllStudents()) {
             studentMap.put(s.getUserId(), s);
         }
         req.setAttribute("studentMap", studentMap);
 
         java.util.Map<Integer, Teacher> teacherMap = new java.util.HashMap<>();
-        for (Teacher t : teacherDao.findAll()) {
+        for (Teacher t : adminService.getAllTeachers()) {
             teacherMap.put(t.getUserId(), t);
         }
         req.setAttribute("teacherMap", teacherMap);
@@ -362,20 +351,11 @@ public class AdminServlet extends HttpServlet {
         }
         int pageSize = 10;
 
-        java.util.List<Student> students;
-        int totalStudents;
-
-        if (search != null && !search.trim().isEmpty()) {
-            students = studentDao.search(search, page, pageSize);
-            totalStudents = studentDao.count(search);
-        } else {
-            students = studentDao.search("", page, pageSize);
-            totalStudents = studentDao.count("");
-        }
-
+        List<Student> students = adminService.searchStudents(search, page, pageSize);
+        int totalStudents = adminService.countStudents(search);
         int totalPages = (int) Math.ceil((double) totalStudents / pageSize);
 
-        java.util.List<User> users = userDao.findAll();
+        List<User> users = adminService.getAllUsers();
         java.util.Map<Integer, User> userMap = new java.util.HashMap<>();
         for (User u : users) {
             userMap.put(u.getId(), u);
@@ -403,20 +383,11 @@ public class AdminServlet extends HttpServlet {
         }
         int pageSize = 10;
 
-        java.util.List<Teacher> teachers;
-        int totalTeachers;
-
-        if (search != null && !search.trim().isEmpty()) {
-            teachers = teacherDao.search(search, page, pageSize);
-            totalTeachers = teacherDao.count(search);
-        } else {
-            teachers = teacherDao.search("", page, pageSize);
-            totalTeachers = teacherDao.count("");
-        }
-
+        List<Teacher> teachers = adminService.searchTeachers(search, page, pageSize);
+        int totalTeachers = adminService.countTeachers(search);
         int totalPages = (int) Math.ceil((double) totalTeachers / pageSize);
 
-        java.util.List<User> users = userDao.findAll();
+        List<User> users = adminService.getAllUsers();
         java.util.Map<Integer, User> userMap = new java.util.HashMap<>();
         for (User u : users) {
             userMap.put(u.getId(), u);
@@ -431,8 +402,8 @@ public class AdminServlet extends HttpServlet {
     }
 
     private void showCourses(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        req.setAttribute("courses", courseDao.findAll());
-        java.util.List<Teacher> teachers = teacherDao.findAll();
+        req.setAttribute("courses", adminService.getAllCourses());
+        List<Teacher> teachers = adminService.getAllTeachers();
         req.setAttribute("teachers", teachers);
 
         java.util.Map<Integer, Teacher> teacherMap = new java.util.HashMap<>();
@@ -441,8 +412,9 @@ public class AdminServlet extends HttpServlet {
         }
         req.setAttribute("teacherMap", teacherMap);
 
+        List<User> users = adminService.getAllUsers();
         java.util.Map<Integer, User> userMap = new java.util.HashMap<>();
-        for (User u : userDao.findAll()) {
+        for (User u : users) {
             userMap.put(u.getId(), u);
         }
         req.setAttribute("userMap", userMap);
@@ -460,30 +432,31 @@ public class AdminServlet extends HttpServlet {
             return;
         }
 
-        int targetUserId = Integer.parseInt(userIdStr);
-        java.util.Optional<User> targetUserOpt = userDao.findById(targetUserId);
+        try {
+            int targetUserId = Integer.parseInt(userIdStr);
+            Optional<User> targetUserOpt = adminService.getUserById(targetUserId);
 
-        if (targetUserOpt.isPresent() && originalAdmin.getRoleId() == 1) {
-            User targetUser = targetUserOpt.get();
+            if (targetUserOpt.isPresent() && originalAdmin.getRoleId() == 1) {
+                User targetUser = targetUserOpt.get();
 
-            // Store original admin for restoration later
-            session.setAttribute("originalAdmin", originalAdmin);
-            session.setAttribute("user", targetUser);
-            session.setAttribute("impersonating", true);
+                session.setAttribute("originalAdmin", originalAdmin);
+                session.setAttribute("user", targetUser);
+                session.setAttribute("impersonating", true);
 
-            // Redirect to appropriate dashboard based on target role
-            if (targetUser.getRoleId() == 3) { // Student
-                resp.sendRedirect(req.getContextPath() + "/student/dashboard");
-            } else if (targetUser.getRoleId() == 2) { // Teacher
-                resp.sendRedirect(req.getContextPath() + "/teacher/dashboard");
+                if (targetUser.getRoleId() == 3) { // Student
+                    resp.sendRedirect(req.getContextPath() + "/student/dashboard");
+                } else if (targetUser.getRoleId() == 2) { // Teacher
+                    resp.sendRedirect(req.getContextPath() + "/teacher/dashboard");
+                } else {
+                    session.removeAttribute("originalAdmin");
+                    session.removeAttribute("impersonating");
+                    session.setAttribute("user", originalAdmin);
+                    resp.sendRedirect(req.getContextPath() + "/admin/users");
+                }
             } else {
-                // Cannot impersonate another admin, go back
-                session.removeAttribute("originalAdmin");
-                session.removeAttribute("impersonating");
-                session.setAttribute("user", originalAdmin);
                 resp.sendRedirect(req.getContextPath() + "/admin/users");
             }
-        } else {
+        } catch (NumberFormatException e) {
             resp.sendRedirect(req.getContextPath() + "/admin/users");
         }
     }

@@ -76,6 +76,7 @@ public class DataSeeder {
             pstmtUser.executeUpdate();
 
             // 2. Create 15 Teachers
+            java.util.Set<String> usedEmployeeIds = new java.util.HashSet<>();
             for (int i = 0; i < 15; i++) {
                 String firstName = faker.name().firstName();
                 String lastName = faker.name().lastName();
@@ -92,7 +93,14 @@ public class DataSeeder {
                     if (generatedKeys.next()) {
                         int userId = generatedKeys.getInt(1);
                         pstmtTeacher.setInt(1, userId);
-                        pstmtTeacher.setString(2, "EMP" + faker.number().digits(4));
+
+                        String empId;
+                        do {
+                            empId = "EMP" + faker.number().digits(4);
+                        } while (usedEmployeeIds.contains(empId));
+                        usedEmployeeIds.add(empId);
+
+                        pstmtTeacher.setString(2, empId);
                         pstmtTeacher.setString(3, email);
                         pstmtTeacher.setString(4, faker.educator().course());
                         pstmtTeacher.executeUpdate();
@@ -101,6 +109,7 @@ public class DataSeeder {
             }
 
             // 3. Create 100 Students
+            java.util.Set<String> usedStudentNumbers = new java.util.HashSet<>();
             for (int i = 0; i < 100; i++) {
                 String firstName = faker.name().firstName();
                 String lastName = faker.name().lastName();
@@ -117,8 +126,14 @@ public class DataSeeder {
                     if (generatedKeys.next()) {
                         int userId = generatedKeys.getInt(1);
                         pstmtStudent.setInt(1, userId);
-                        // Format: 24G + number
-                        pstmtStudent.setString(2, "24G" + faker.number().numberBetween(1000, 9999));
+
+                        String studentNumber;
+                        do {
+                            studentNumber = "24G" + faker.number().numberBetween(1000, 9999);
+                        } while (usedStudentNumbers.contains(studentNumber));
+                        usedStudentNumbers.add(studentNumber);
+
+                        pstmtStudent.setString(2, studentNumber);
                         pstmtStudent.setString(3, email);
 
                         LocalDate dob = faker.date().birthday(18, 25).toInstant().atZone(ZoneId.systemDefault())

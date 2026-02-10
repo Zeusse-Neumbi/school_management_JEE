@@ -1,9 +1,8 @@
 package com.example.school.web.controller;
 
-import com.example.school.dao.UserDao;
-import com.example.school.dao.impl.UserDaoSqliteImpl;
 import com.example.school.model.User;
-import com.example.school.util.PasswordUtil;
+import com.example.school.service.ServiceFactory;
+import com.example.school.service.UserService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -17,11 +16,11 @@ import java.util.Optional;
 @WebServlet(name = "LoginServlet", urlPatterns = { "/login" })
 public class LoginServlet extends HttpServlet {
 
-    private UserDao userDao;
+    private UserService userService;
 
     @Override
     public void init() throws ServletException {
-        userDao = new UserDaoSqliteImpl();
+        userService = ServiceFactory.getUserService();
     }
 
     @Override
@@ -42,17 +41,14 @@ public class LoginServlet extends HttpServlet {
         String email = req.getParameter("email");
         String password = req.getParameter("password");
 
-        Optional<User> userOpt = userDao.findByEmail(email);
+        Optional<User> userOpt = userService.authenticate(email, password);
 
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            // Verify password
-            if (PasswordUtil.checkPassword(password, user.getPassword())) {
-                HttpSession session = req.getSession();
-                session.setAttribute("user", user);
-                redirectUser(resp, user.getRoleId());
-                return;
-            }
+            HttpSession session = req.getSession();
+            session.setAttribute("user", user);
+            redirectUser(resp, user.getRoleId());
+            return;
         }
 
         // Login failed
